@@ -1,0 +1,6 @@
+.cache/
+build/
+compile_commands.json
+
+subprojects/packagecache/
+subprojects/openfhe-development/
