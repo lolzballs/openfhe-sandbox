@@ -1,6 +1,9 @@
+__pycache__/
+.data/
+
 .cache/
 build/
 compile_commands.json
 
 subprojects/packagecache/
-subprojects/openfhe-development/
+subprojects/*
