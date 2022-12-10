@@ -16,9 +16,8 @@ openfhe_options.add_cmake_defines({
 })
 openfhe_subproj = cmake.subproject('openfhe', options: openfhe_options)
 
-dep_openfhe_core = openfhe_subproj.dependency('OPENFHEcore')
-dep_openfhe_pke = openfhe_subproj.dependency('OPENFHEpke')
-
+dep_openfhe_core = openfhe_subproj.dependency('OPENFHEcore', include_type: 'system')
+dep_openfhe_pke = openfhe_subproj.dependency('OPENFHEpke', include_type: 'system')
 
 executable(
   'openfhe_sandbox',
