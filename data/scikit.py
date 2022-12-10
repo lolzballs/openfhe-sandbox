@@ -17,7 +17,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument('--location', default='.data/mnist_trimmed')
     parser.add_argument('-i', '--max-iter', default=100, type=int)
-    parser.add_argument('-v', '--verbose', default=False)
+    parser.add_argument('-v', '--verbose', default=False, type=bool)
     parser.add_argument('output', default=None, nargs='?',
                         help='file to serialize trained coefficients to')
     return parser
