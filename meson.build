@@ -28,3 +28,10 @@ executable(
   install: true
 )
 
+executable(
+  'inference',
+  'src/inference.cpp',
+  include_directories: includes,
+  dependencies: [dep_openfhe_core, dep_openfhe_pke],
+  install: true
+)
