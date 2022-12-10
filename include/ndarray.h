@@ -2,6 +2,8 @@
 #define NDARRAY_H
 
 #include <cassert>
+#include <endian.h>
+#include <fstream>
 #include <iostream>
 #include <vector>
 
@@ -43,18 +45,46 @@ public:
 		return backing[flatten_idx(index)];
 	}
 
-	static ndarray<T> load_from_file(std::string const& filename,
+	static ndarray<T> load_from_istream(std::ifstream &is,
 			const std::vector<std::size_t> &&shape) {
 		const std::size_t size = calculate_size(shape);
 		std::vector<T> data(size);
 		const std::size_t size_in_bytes = size * sizeof(T);
 
-		std::ifstream is(filename, std::ios::binary);
 		is.read(reinterpret_cast<char*>(data.data()), size_in_bytes);
 		/* make sure we read the expected values */
 		assert(static_cast<std::size_t>(is.gcount()) == size_in_bytes);
 
 		return ndarray(shape, std::move(data));
+	}
+
+	static ndarray<T> load_from_file(std::string const& filename,
+			const std::vector<std::size_t> &&shape) {
+		std::ifstream is(filename, std::ios::binary);
+		return load_from_istream(is, std::move(shape));
+	}
+
+	static ndarray<uint8_t> load_from_idx_file(std::string const& filename) {
+		std::ifstream is(filename, std::ios::binary);
+
+		uint16_t magic;
+		is.read(reinterpret_cast<char*>(&magic), sizeof(uint16_t));
+		uint8_t type;
+		is.read(reinterpret_cast<char*>(&type), sizeof(uint8_t));
+		uint8_t dim_count;
+		is.read(reinterpret_cast<char*>(&dim_count), sizeof(uint8_t));
+
+		assert(magic == 0x0000);
+		assert(type == 0x08); /* uint8 */
+
+		std::vector<std::size_t> shape(dim_count);
+		is.read(reinterpret_cast<char*>(shape.data()),
+				sizeof(uint32_t) * dim_count);
+		for (auto &dim : shape) {
+			dim = be32toh(dim);
+		}
+
+		return load_from_istream(is, std::move(shape));
 	}
 
 private:
