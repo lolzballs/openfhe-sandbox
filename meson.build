@@ -19,8 +19,12 @@ openfhe_subproj = cmake.subproject('openfhe', options: openfhe_options)
 dep_openfhe_core = openfhe_subproj.dependency('OPENFHEcore', include_type: 'system')
 dep_openfhe_pke = openfhe_subproj.dependency('OPENFHEpke', include_type: 'system')
 
+includes = include_directories('include')
+
 executable(
   'openfhe_sandbox',
   'src/openfhe_sandbox.cpp',
   dependencies: [dep_openfhe_core, dep_openfhe_pke],
-  install: true)
+  install: true
+)
+
