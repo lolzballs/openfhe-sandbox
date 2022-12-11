@@ -94,11 +94,12 @@ public:
 		assert(magic == 0x0000);
 		assert(type == 0x08); /* uint8 */
 
-		std::vector<std::size_t> shape(dim_count);
-		is.read(reinterpret_cast<char*>(shape.data()),
-				sizeof(uint32_t) * dim_count);
-		for (auto &dim : shape) {
-			dim = be32toh(dim);
+		std::vector<std::size_t> shape;
+		shape.reserve(dim_count);
+		for (uint8_t i = 0; i < dim_count; i++) {
+			uint32_t read;
+			is.read(reinterpret_cast<char*>(&read), sizeof(uint32_t));
+			shape.push_back(be32toh(read));
 		}
 
 		return load_from_istream(is, std::move(shape));
