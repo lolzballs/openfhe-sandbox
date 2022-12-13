@@ -11,18 +11,7 @@ typedef lbcrypto::CryptoContext<lbcrypto::DCRTPoly> CryptoContext;
 Ciphertext inner_product(const CryptoContext &cc,
 		const Ciphertext &a, const Ciphertext &b) {
 	auto mult = cc->EvalMult(a, b);
-
-	/* perform sum slots (ref. Sustronk_MA_EEMCS) */
-	std::cout << cc->GetEncodingParams()->GetBatchSize() << std::endl;
-	std::size_t log_2_batch_size = std::log2(cc->GetEncodingParams()->GetBatchSize());
-	/* TODO: utilize rotation hoisting to go brr */
-	auto sum = mult;
-	for (std::size_t i = 0; i < log_2_batch_size; i++) {
-		auto rotated = cc->EvalRotate(sum, 1 << i);
-		sum += rotated;
-	}
-
-	return sum;
+	return cc->EvalSum(mult, cc->GetEncodingParams()->GetBatchSize());
 }
 
 Ciphertext predict(const CryptoContext &cc,
@@ -80,14 +69,7 @@ int main(int argc, char **argv) {
 	std::cout << "generating multiplication keys" << std::endl;
 	cc->EvalMultKeysGen(keys.secretKey);
 
-	/* sum slots requires these keys */
-	std::size_t log_2_batch_size = std::ceil(std::log2(batch_size));
-	std::vector<int32_t> sigmoid_rotations;
-	for (std::size_t i = 0; i < log_2_batch_size; i++) {
-		sigmoid_rotations.push_back(1 << i);
-	}
-	std::cout << "generating " << log_2_batch_size << " rotation keys" << std::endl;
-	cc->EvalRotateKeyGen(keys.secretKey, sigmoid_rotations);
+	cc->EvalSumKeyGen(keys.secretKey);
 
 	std::cout << "encoding weights" << std::endl;
 	lbcrypto::Plaintext ptw = cc->MakeCKKSPackedPlaintext(weights[std::nullopt]);
