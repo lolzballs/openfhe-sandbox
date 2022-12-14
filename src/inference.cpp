@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
 
 	auto weights = ndarray<double>::load_from_file("lr_weights.bin", { 28 * 28 });
 	auto images = ndarray<uint8_t>::load_from_idx_file(".data/mnist_trimmed/"
-			"t10k-images-idx3-ubyte");
+			"t10k-images-idx3-ubyte").to<double>();
 
 	/* setup crypto context */
 	uint32_t mult_depth = 4;
@@ -74,10 +74,7 @@ int main(int argc, char **argv) {
 	std::cout << "encoding weights" << std::endl;
 	lbcrypto::Plaintext ptw = cc->MakeCKKSPackedPlaintext(weights[std::nullopt]);
 
-	std::vector<uint8_t> image_u = images[image_idx];
-	std::vector<double> image(image_u.size());
-	std::transform(image_u.begin(), image_u.end(), image.begin(),
-			[](uint8_t v) { return static_cast<double>(v); });
+	std::vector<double> image = images[image_idx];
 	std::cout << "encoding image" << std::endl;
 	lbcrypto::Plaintext pti = cc->MakeCKKSPackedPlaintext(image);
 

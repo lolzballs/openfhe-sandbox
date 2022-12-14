@@ -62,6 +62,14 @@ public:
 		return std::vector(start, start + minor_size);
 	}
 
+	template<typename U>
+	ndarray<U> to() const {
+		std::vector<U> backing_u(backing.size());
+		std::transform(backing.begin(), backing.end(), backing_u.begin(),
+				[](T v) { return static_cast<U>(v); });
+		return ndarray<U>(shape, std::move(backing_u));
+	}
+
 	static ndarray<T> load_from_istream(std::ifstream &is,
 			const std::vector<std::size_t> &&shape) {
 		const std::size_t size = calculate_size(shape);
