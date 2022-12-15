@@ -76,11 +76,14 @@ int main(int argc, char **argv) {
 	cc->EvalSumKeyGen(keys.secretKey);
 
 	std::cout << "encoding weights" << std::endl;
-	lbcrypto::Plaintext ptw = cc->MakeCKKSPackedPlaintext(weights[std::nullopt]);
+	auto weight_span = weights[std::nullopt];
+	lbcrypto::Plaintext ptw = cc->MakeCKKSPackedPlaintext(
+			weight_span.begin(), weight_span.end());
 
-	std::vector<double> image = images[image_idx];
+	auto image = images[image_idx];
 	std::cout << "encoding image" << std::endl;
-	lbcrypto::Plaintext pti = cc->MakeCKKSPackedPlaintext(image);
+	lbcrypto::Plaintext pti = cc->MakeCKKSPackedPlaintext(
+			image.begin(), image.end());
 
 	std::cout << "encrypting weights" << std::endl;
 	Ciphertext ctw = cc->Encrypt(keys.publicKey, ptw);

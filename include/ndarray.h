@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <vector>
 
 
@@ -46,20 +47,14 @@ public:
 		return backing[flatten_idx(index)];
 	}
 
-	std::vector<T> operator[](std::optional<std::size_t> major_idx) const {
-		/* TOOD: make this more efficient without copying */
+	std::span<const T> operator[](std::optional<std::size_t> major_idx) const {
 		if (!major_idx.has_value())
-			return backing;
+			return std::span(backing.begin(), backing.end());
 
-		std::vector<std::size_t> minor_shape;
-		minor_shape.reserve(shape.size() - 1);
-		for (std::size_t i = 0; i < shape.size() - 1; i++) {
-			minor_shape.push_back(shape[i + 1]);
-		}
-		std::size_t minor_size = calculate_size(minor_shape);
-
+		std::size_t minor_size = calculate_size(
+				std::span{ shape.begin() + 1, shape.end() });
 		auto start = backing.begin() + minor_size * *major_idx;
-		return std::vector(start, start + minor_size);
+		return std::span(start, minor_size);
 	}
 
 	template<typename U>
@@ -130,6 +125,10 @@ private:
 	}
 
 	static std::size_t calculate_size(const std::vector<std::size_t> &shape) {
+		return calculate_size(std::span{ shape.begin(), shape.end() });
+	}
+
+	static std::size_t calculate_size(const std::span<const std::size_t> &shape) {
 		std::size_t size = 1;
 		for (std::size_t dim_size : shape) {
 			size *= dim_size;
