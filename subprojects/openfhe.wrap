@@ -1,4 +1,4 @@
 [wrap-git]
 directory = openfhe-development
-url = https://github.com/openfheorg/openfhe-development
-revision = v1.0.1
+url = https://github.com/lolzballs/openfhe-development
+revision = head
