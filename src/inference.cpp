@@ -1,3 +1,4 @@
+#include <bit>
 #include <optional>
 
 #include <openfhe.h>
@@ -7,14 +8,17 @@
 typedef lbcrypto::Ciphertext<lbcrypto::DCRTPoly> Ciphertext;
 typedef lbcrypto::CryptoContext<lbcrypto::DCRTPoly> CryptoContext;
 
+static uint32_t ceil_log2(uint32_t value) {
+	return 32 - std::countl_zero(value);
+}
 
-Ciphertext inner_product(const CryptoContext &cc,
+static Ciphertext inner_product(const CryptoContext &cc,
 		const Ciphertext &a, const Ciphertext &b) {
 	auto mult = cc->EvalMult(a, b);
 	return cc->EvalSum(mult, cc->GetEncodingParams()->GetBatchSize());
 }
 
-Ciphertext predict(const CryptoContext &cc,
+static Ciphertext predict(const CryptoContext &cc,
 		const Ciphertext &&features, const Ciphertext &&weights,
 		std::optional<Ciphertext*> intermediate = std::nullopt) {
 	auto dot = inner_product(cc, features, weights);
@@ -49,7 +53,7 @@ int main(int argc, char **argv) {
 	/* setup crypto context */
 	uint32_t mult_depth = 4;
 	uint32_t scale_mod_size = 50;
-	uint32_t batch_size = 1 << (32 - __builtin_clzl(28 * 28));
+	uint32_t batch_size = 1 << ceil_log2(28 * 28);
 	lbcrypto::CCParams<lbcrypto::CryptoContextCKKSRNS> parameters;
 	parameters.SetMultiplicativeDepth(mult_depth);
 	parameters.SetScalingModSize(scale_mod_size);
