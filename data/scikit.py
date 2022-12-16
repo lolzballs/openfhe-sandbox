@@ -32,6 +32,7 @@ if __name__ == "__main__":
     train_y, test_y = transform_to_onehot(train_y), transform_to_onehot(test_y)
 
     lr = sklearn.linear_model.LogisticRegression(penalty=None,
+                                                 fit_intercept=True,
                                                  max_iter=args.max_iter,
                                                  verbose=args.verbose)
     lr.fit(train_x, train_y)
