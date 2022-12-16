@@ -1,6 +1,7 @@
 #ifndef NDARRAY_H
 #define NDARRAY_H
 
+#include <algorithm>
 #include <cassert>
 #include <endian.h>
 #include <fstream>
