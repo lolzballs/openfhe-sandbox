@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
 				&before_sigmoid);
 
 		lbcrypto::Plaintext pt_before_sigmoid;
-		cc->Decrypt(prediction, keys.secretKey, &pt_before_sigmoid);
+		cc->Decrypt(before_sigmoid, keys.secretKey, &pt_before_sigmoid);
 		std::cout << "before sigmoid "
 			<< pt_before_sigmoid->GetRealPackedValue()[0] << std::endl;
 
