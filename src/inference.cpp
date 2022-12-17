@@ -18,8 +18,8 @@ static Ciphertext inner_product(const CryptoContext &cc,
 	return cc->EvalSum(mult, cc->GetEncodingParams()->GetBatchSize());
 }
 
-static Ciphertext predict(const CryptoContext &cc,
-		const Ciphertext &features, const Ciphertext &weights,
+static Ciphertext predict(const CryptoContext &cc, const Ciphertext &features,
+		const Ciphertext &weights, const Ciphertext &bias,
 		std::optional<Ciphertext*> intermediate = std::nullopt) {
 	auto dot = inner_product(cc, features, weights);
 	if (intermediate.has_value())
@@ -36,7 +36,7 @@ static Ciphertext predict(const CryptoContext &cc,
 		0,								/* x^4 */
 		1.3511295 / (8 * 8 * 8 * 8),	/* x^5 */
 	};
-	return cc->EvalPoly(dot, coeffs);
+	return cc->EvalPoly(cc->EvalAdd(dot, bias), coeffs);
 }
 
 static void print_usage(char *program) {
@@ -49,7 +49,8 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	const auto weights = ndarray<double>::load_from_file("lr_weights.bin", { 28 * 28 });
+	const auto weights = ndarray<double>::load_from_file("lr_weights.bin",
+			{ 28 * 28 + 1 });
 	const auto images = ndarray<uint8_t>::load_from_idx_file(".data/mnist_trimmed/"
 			"t10k-images-idx3-ubyte").to<double>();
 
@@ -80,10 +81,13 @@ int main(int argc, char **argv) {
 	std::cout << "encoding weights" << std::endl;
 	const auto weight_span = weights[std::nullopt];
 	const lbcrypto::Plaintext ptw = cc->MakeCKKSPackedPlaintext(
-			weight_span.begin(), weight_span.end());
+			weight_span.begin(), weight_span.end() - 1);
+	const lbcrypto::Plaintext ptb = cc->MakeCKKSPackedPlaintext(
+			weight_span.end() - 1, weight_span.end());
 
 	std::cout << "encrypting weights" << std::endl;
 	const Ciphertext ctw = cc->Encrypt(keys.publicKey, ptw);
+	const Ciphertext ctb = cc->Encrypt(keys.publicKey, ptb);
 
 	if (argc == 2) {
 		std::size_t image_idx = std::strtoull(argv[1], NULL, 10);
@@ -96,7 +100,7 @@ int main(int argc, char **argv) {
 
 		std::cout << "predicting..." << std::endl;
 		Ciphertext before_sigmoid;
-		const Ciphertext prediction = predict(cc, cti, ctw,
+		const Ciphertext prediction = predict(cc, cti, ctw, ctb,
 				&before_sigmoid);
 
 		lbcrypto::Plaintext pt_before_sigmoid;
@@ -124,7 +128,7 @@ int main(int argc, char **argv) {
 					image.begin(), image.end());
 			const Ciphertext cti = cc->Encrypt(keys.publicKey, pti);
 
-			const Ciphertext prediction = predict(cc, cti, ctw);
+			const Ciphertext prediction = predict(cc, cti, ctw, ctb);
 
 			lbcrypto::Plaintext pt_prediction;
 			cc->Decrypt(prediction, keys.secretKey, &pt_prediction);

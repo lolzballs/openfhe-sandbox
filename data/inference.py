@@ -29,6 +29,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     weights = np.fromfile(args.weights, dtype=np.double)
+    bias = weights[-1]
+    weights = weights[:-1]
 
     (train_x, train_y), (test_x, test_y) = mnist.load_data(args.location)
     train_x, test_x = train_x.reshape(-1, 28 * 28), test_x.reshape(-1, 28 * 28)
@@ -36,13 +38,12 @@ if __name__ == "__main__":
 
     if args.image is not None:
         dot = test_x[args.image, :] @ weights
-        prediction = sigmoid(dot)
+        prediction = sigmoid(dot + bias)
 
         print(f'dot: {dot}, prediction: {prediction}, '
               f'ground truth: {test_y[0]}')
     else:
         dot = test_x @ weights
-        prediction = sigmoid(dot) >= 0.5
+        prediction = sigmoid(dot + bias) >= 0.5
 
         print(f'accuracy: {(prediction == test_y).sum() / test_x.shape[0]}')
-
