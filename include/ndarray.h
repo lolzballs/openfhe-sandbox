@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <vector>
 
@@ -56,6 +57,16 @@ public:
 				std::span{ shape.begin() + 1, shape.end() });
 		auto start = backing.begin() + minor_size * *major_idx;
 		return std::span(start, minor_size);
+	}
+
+	std::span<const T> operator[](std::pair<std::size_t, std::size_t>
+			idx_length) const {
+		const auto [major_idx, length] = idx_length;
+
+		std::size_t minor_size = calculate_size(
+				std::span{ shape.begin() + 1, shape.end() });
+		auto start = backing.begin() + minor_size * major_idx;
+		return std::span(start, minor_size * length);
 	}
 
 	template<typename U>
