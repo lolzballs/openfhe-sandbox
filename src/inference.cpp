@@ -5,17 +5,15 @@
 
 #include "ndarray.h"
 
+const std::size_t features_size = 28 * 28;
+
 typedef lbcrypto::Ciphertext<lbcrypto::DCRTPoly> Ciphertext;
 typedef lbcrypto::CryptoContext<lbcrypto::DCRTPoly> CryptoContext;
-
-static uint32_t ceil_log2(uint32_t value) {
-	return 32 - std::countl_zero(value);
-}
 
 static Ciphertext inner_product(const CryptoContext &cc,
 		const Ciphertext &a, const Ciphertext &b) {
 	auto mult = cc->EvalMult(a, b);
-	return cc->EvalSum(mult, cc->GetEncodingParams()->GetBatchSize());
+	return cc->EvalSum(mult, features_size);
 }
 
 static Ciphertext predict(const CryptoContext &cc, const Ciphertext &features,
@@ -39,12 +37,69 @@ static Ciphertext predict(const CryptoContext &cc, const Ciphertext &features,
 	return cc->EvalPoly(cc->EvalAdd(dot, bias), coeffs);
 }
 
+template<typename T>
+static std::vector<T> span_to_vector(std::span<const T> span) {
+	std::vector<T> result;
+	result.reserve(span.size());
+	result.insert(result.end(), span.begin(), span.end());
+	return result;
+}
+
+static std::vector<double> pad_images(std::span<const double> images,
+		std::size_t batch_size, std::size_t slots) {
+	std::vector<double> result;
+	result.reserve(batch_size * slots);
+	for (std::size_t i = 0; i < batch_size; i++) {
+		const auto subspan = images.subspan(i * features_size, features_size);
+		result.insert(result.end(), subspan.begin(), subspan.end());
+		/* fill the rest with zeros */
+		result.resize((i + 1) * slots);
+	}
+	return result;
+}
+
+static std::vector<double> pad_weights(std::span<const double> weights,
+		std::size_t batch_size, std::size_t slots) {
+	std::vector<double> result;
+	result.reserve(batch_size * slots);
+	for (std::size_t i = 0; i < batch_size; i++) {
+		result.insert(result.end(), weights.begin(), weights.end());
+		/* fill the rest with zeros */
+		result.resize((i + 1) * slots);
+	}
+	return result;
+}
+
+static uint32_t ceil_log2(uint32_t value) {
+	return 32 - std::countl_zero(value);
+}
+
 static void print_usage(char *program) {
-	fprintf(stderr, "usage: %s <image_idx>\n", program);
+	fprintf(stderr,
+			"usage: %s <batch|single> [args]>\n"
+			"	batch <batch_size>\n"
+			"	single [idx]\n"
+			, program);
 }
 
 int main(int argc, char **argv) {
-	if (argc != 1 && argc != 2) {
+	if (argc != 2 && argc != 3) {
+		print_usage(argv[0]);
+		return -1;
+	}
+
+	const char *mode = argv[1];
+	uint32_t batch_size = 1;
+	if (strcmp(mode, "single") == 0) {
+		batch_size = 1;
+	} else if (strcmp(mode, "batch") == 0) {
+		if (argc != 3) {
+			print_usage(argv[0]);
+			return -1;
+		}
+
+		batch_size = std::atoi(argv[2]);
+	} else {
 		print_usage(argv[0]);
 		return -1;
 	}
@@ -57,11 +112,19 @@ int main(int argc, char **argv) {
 	/* setup crypto context */
 	const uint32_t mult_depth = 4;
 	const uint32_t scale_mod_size = 50;
-	const uint32_t batch_size = 1 << ceil_log2(28 * 28);
+	const uint32_t pt_batch_size = 1 << ceil_log2(batch_size * features_size);
+	const uint32_t slots_per_image = pt_batch_size / batch_size;
+	std::cout
+		<< "used slots per image: " << 28 * 28 << std::endl
+		<< "number of slots per image: " << slots_per_image << std::endl
+		<< "fraction of slots used: "
+		<< static_cast<double>(features_size * batch_size) / batch_size
+		<< std::endl;
+
 	lbcrypto::CCParams<lbcrypto::CryptoContextCKKSRNS> parameters;
 	parameters.SetMultiplicativeDepth(mult_depth);
 	parameters.SetScalingModSize(scale_mod_size);
-	parameters.SetBatchSize(batch_size);
+	parameters.SetBatchSize(pt_batch_size);
 
 	lbcrypto::CryptoContext<lbcrypto::DCRTPoly> cc =
 		lbcrypto::GenCryptoContext(parameters);
@@ -81,20 +144,22 @@ int main(int argc, char **argv) {
 	std::cout << "encoding weights" << std::endl;
 	const auto weight_span = weights[std::nullopt];
 	const lbcrypto::Plaintext ptw = cc->MakeCKKSPackedPlaintext(
-			weight_span.begin(), weight_span.end() - 1);
+			pad_weights(weight_span.subspan(0, weight_span.size() - 1),
+				batch_size, slots_per_image));
 	const lbcrypto::Plaintext ptb = cc->MakeCKKSPackedPlaintext(
-			weight_span.end() - 1, weight_span.end());
+			span_to_vector(weight_span.subspan(weight_span.size() - 1, 1)));
 
 	std::cout << "encrypting weights" << std::endl;
 	const Ciphertext ctw = cc->Encrypt(keys.publicKey, ptw);
 	const Ciphertext ctb = cc->Encrypt(keys.publicKey, ptb);
 
-	if (argc == 2) {
-		std::size_t image_idx = std::strtoull(argv[1], NULL, 10);
+	/* single with idx */
+	if (batch_size == 1 && argc == 3) {
+		std::size_t image_idx = std::strtoull(argv[2], NULL, 10);
 		const auto image = images[image_idx];
 		std::cout << "encoding image" << std::endl;
 		const lbcrypto::Plaintext pti = cc->MakeCKKSPackedPlaintext(
-				image.begin(), image.end());
+				span_to_vector(image));
 		std::cout << "encrypting image" << std::endl;
 		const Ciphertext cti = cc->Encrypt(keys.publicKey, pti);
 
@@ -112,28 +177,35 @@ int main(int argc, char **argv) {
 		cc->Decrypt(prediction, keys.secretKey, &pt_prediction);
 		std::cout << "prediction "
 			<< pt_prediction->GetRealPackedValue()[0] << std::endl;
-
 	} else {
 		const auto labels = ndarray<uint8_t>::load_from_idx_file(
 				".data/mnist_trimmed/t10k-labels-idx1-ubyte");
 		std::size_t correct = 0;
 
-		/* TODO: implement batching */
-		for (std::size_t i = 0; i < images.shape[0]; i++) {
-			const auto image = images[i];
-			const uint8_t ground_truth = *labels[i].begin();
+		std::size_t num_batches = (images.shape[0] + batch_size - 1)
+			/ batch_size;
+		for (std::size_t i = 0; i < num_batches; i++) {
+			const auto batch_range = std::make_pair(i * batch_size, batch_size);
+			const auto batch_x = images[batch_range];
+			const auto batch_y = labels[batch_range];
 
-			std::cout << "predicting image " << i << std::endl;
-			const lbcrypto::Plaintext pti = cc->MakeCKKSPackedPlaintext(
-					image.begin(), image.end());
+			const auto padded_batch_x = pad_images(batch_x, batch_size, slots_per_image);
+
+			std::cout << "predicting images " << batch_range.first << " to "
+				<< batch_range.first + batch_range.second << std::endl;
+			const lbcrypto::Plaintext pti = cc->MakeCKKSPackedPlaintext(padded_batch_x);
 			const Ciphertext cti = cc->Encrypt(keys.publicKey, pti);
 
 			const Ciphertext prediction = predict(cc, cti, ctw, ctb);
 
 			lbcrypto::Plaintext pt_prediction;
 			cc->Decrypt(prediction, keys.secretKey, &pt_prediction);
-			if (((pt_prediction->GetRealPackedValue()[0] >= 0.5) ? 3 : 8) == ground_truth)
-				correct++;
+			const auto prediction_decoded = pt_prediction->GetRealPackedValue();
+			for (std::size_t j = 0; j < batch_size; j++) {
+				std::cout << prediction_decoded[j * slots_per_image] << std::endl;
+				if ((prediction_decoded[j * slots_per_image] >= 0.5) == (batch_y[j] == 3))
+					correct++;
+			}
 		}
 
 		std::cout << "accuracy: "
