@@ -122,6 +122,7 @@ int main(int argc, char **argv) {
 		<< std::endl;
 
 	lbcrypto::CCParams<lbcrypto::CryptoContextCKKSRNS> parameters;
+	parameters.SetRingDim(pt_batch_size * 2);
 	parameters.SetMultiplicativeDepth(mult_depth);
 	parameters.SetScalingModSize(scale_mod_size);
 	parameters.SetBatchSize(pt_batch_size);
